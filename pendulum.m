@@ -232,13 +232,19 @@ function dx = inverted_pendulum_dynamics(t, x, K)
 end
 %% Discrete time for the inverted_pendulum (some mistake here)
 function dx = inverted_pendulum_dynamics_discrete(t, x, Kd, Ts)
-    persistent u_prev;
-    if isempty(u_prev)
-        u_prev = 0; % 初始控制输入
-    end
-    u = -Kd * x; % 计算控制输入
-    dx_continuous = inverted_pendulum_dynamics(t, x, u_prev); % 计算连续时间系统导数
-    dx = dx_continuous * Ts; % 近似离散化
-    u_prev = u; % 存储上一次控制输入
+    % System parameters
+    M = 1;
+    L = 0.842;
+    F = 1;
+    g = 9.8093;
+
+    % Control input
+    u = -Kd * x;
+
+    % State equations with zero-order hold input
+    dx = [x(2);
+          (u - F*x(2)) / M;
+          x(4);
+          (g*sin(x(3)))/L - 1/L*((u - F*x(2)) / M)*cos(x(3))];
 end
 

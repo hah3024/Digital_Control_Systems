@@ -1,0 +1,73 @@
+\documentclass[a4paper, 12pt]{article}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{hyperref}
+
+\title{Inverted Pendulum Control System}
+\author{Your Name}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This report presents the design and simulation of a control system for an inverted pendulum using MATLAB. The project explores both continuous and discrete-time control strategies, including state feedback and Linear Quadratic Regulator (LQR) control. The system's behavior is analyzed under various conditions, and the effects of sampling time on stability are examined.
+\end{abstract}
+
+\tableofcontents
+
+\section{Introduction}
+The inverted pendulum is a classic problem in control theory, often used as a benchmark for testing control strategies. This project aims to stabilize the pendulum using various control techniques.
+
+\section{System Description}
+The inverted pendulum system consists of a cart with a pendulum attached. The parameters are:
+\begin{itemize}
+    \item Mass ($M$): 1 kg
+    \item Pendulum Length ($L$): 0.842 m
+    \item Friction Coefficient ($F$): 1
+    \item Gravity ($g$): 9.8093 m/s²
+\end{itemize}
+
+The state vector $x$ includes:
+\begin{itemize}
+    \item $s$: Cart position
+    \item $ds$: Cart velocity
+    \item $\phi$: Pendulum angle
+    \item $d\phi$: Pendulum angular velocity
+\end{itemize}
+
+\section{Control Strategies}
+\subsection{State Feedback Control}
+Designed using pole placement, this strategy is simulated for both linear and nonlinear systems.
+
+\subsection{LQR Optimal Control}
+The Linear Quadratic Regulator method is used to design an optimal controller, simulated for the nonlinear system.
+
+\subsection{Discrete-Time Control}
+The system is discretized, and the effects of sampling time on stability are analyzed.
+
+\section{Simulation and Results}
+\subsection{Closed-Loop System Response}
+Plots of the cart position and pendulum angle over time are generated.
+
+\subsection{Control Input}
+The force applied to the cart to stabilize the pendulum is analyzed.
+
+\subsection{Effect of Sampling Time}
+The system's stability is compared for different sampling times.
+
+\subsection{LQR Control}
+Optimal control performance for the nonlinear system is demonstrated.
+
+\section{Conclusion}
+The project successfully demonstrates the stabilization of an inverted pendulum using various control strategies. The simulations provide insights into the system's behavior under different conditions.
+
+\section{References}
+\begin{itemize}
+    \item MATLAB Documentation
+    \item Control System Toolbox
+\end{itemize}
+
+\end{document} 

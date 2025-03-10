@@ -65,7 +65,7 @@ ylabel('u(t)');
 
 %% B3: Simulate the non-linear system with the same controller K
 tspan = [0 10];
-x0 = [0; 1; 0; 0];
+x0 = [1; 1; 0.5; 0.5];
 % Simulation using ODE45
 [t, x] = ode45(@(t, x) inverted_pendulum_dynamics(t, x, K), tspan, x0);
 
@@ -125,130 +125,148 @@ legend('Control Input u(t)'); % Add legend
 % ylabel('Force (N)');
 % grid on;
 
-%% B4: Effect of sampling time on linear system stability
-% Define sampling times to analyze
-sampling_times_B4 = [0.1, 0.5, 1];
+%% B4-B5: Effect of sampling time on system stability
+Ts_stable = 0.1;   % Stable sampling time
+Ts_unstable = 1.0; % Potentially unstable sampling time
 
-% Create a new figure for each sampling time
-for i = 1:length(sampling_times_B4)
-    Ts = sampling_times_B4(i);
-    
-    % Discretize the closed-loop linear system
-    sysd = c2d(sys_cl, Ts);
-    
-    % Simulate discrete-time linear system
-    t_discrete = 0:Ts:10;
-    [y_discrete, t_discrete, x_discrete] = initial(sysd, x0, t_discrete);
-    
-    % Calculate control input
-    u_discrete = zeros(1, length(t_discrete)-1);
-    for k = 1:length(t_discrete)-1
-        u_discrete(k) = -K * x_discrete(k,:)';
-    end
-    
-    % Create figure for this sampling time
-    figure(5+i);
-    
-    % Plot position
-    subplot(3,1,1);
-    stairs(t_discrete, x_discrete(:,1), 'LineWidth', 1.5);
-    title(['Linear System Position (s) - T_s = ', num2str(Ts), 's']);
-    xlabel('Time (s)');
-    ylabel('Position (m)');
-    grid on;
-    
-    % Plot angle
-    subplot(3,1,2);
-    stairs(t_discrete, x_discrete(:,3), 'LineWidth', 1.5);
-    title(['Linear System Angle (\phi) - T_s = ', num2str(Ts), 's']);
-    xlabel('Time (s)');
-    ylabel('Angle (rad)');
-    grid on;
-    
-    % Plot control input
-    subplot(3,1,3);
-    stairs(t_discrete(1:end-1), u_discrete, 'LineWidth', 1.5);
-    title(['Linear System Control Input (u) - T_s = ', num2str(Ts), 's']);
-    xlabel('Time (s)');
-    ylabel('Force (N)');
-    grid on;
-    
-    % Set overall title and save figure
-    sgtitle(['Linear System Response - Sampling Time T_s = ', num2str(Ts), 's']);
-    saveas(gcf, ['linear_sampling_', num2str(Ts*10), 's.png']);
-end
+% Discretize the closed-loop system with different sampling times
+sysd_stable = c2d(sys_cl, Ts_stable);
+sysd_unstable = c2d(sys_cl, Ts_unstable);
+
+% Simulate discrete-time systems
+t_stable = 0:Ts_stable:10;
+t_unstable = 0:Ts_unstable:10;
+[y_stable, t_stable] = initial(sysd_stable, x0, t_stable);
+[y_unstable, t_unstable] = initial(sysd_unstable, x0, t_unstable);
+
+% Plot results
+figure;
+subplot(2,1,1);
+stairs(t_stable, y_stable);
+title('Discrete-Time System with T_s = 0.1s');
+xlabel('Time (s)');
+ylabel('Output');
+legend('s(t)', '\phi(t)');
+
+subplot(2,1,2);
+stairs(t_unstable, y_unstable);
+title('Discrete-Time System with T_s = 1.0s');
+xlabel('Time (s)');
+ylabel('Output');
+legend('s(t)', '\phi(t)');
+
+%% B4: Effect of sampling time on linear system stability
+Ts_stable = 0.1;   % Stable sampling time
+Ts_unstable = 1.0; % Potentially unstable sampling time
+
+% Discretize the closed-loop linear system with different sampling times
+sysd_stable = c2d(sys_cl, Ts_stable);
+sysd_unstable = c2d(sys_cl, Ts_unstable);
+
+% Simulate discrete-time linear systems
+t_stable = 0:Ts_stable:10;
+t_unstable = 0:Ts_unstable:10;
+[y_stable, t_stable] = initial(sysd_stable, x0, t_stable);
+[y_unstable, t_unstable] = initial(sysd_unstable, x0, t_unstable);
+
+% Plot results for linear system
+figure;
+subplot(2,1,1);
+stairs(t_stable, y_stable);
+title('Linear System with T_s = 0.1s (Stable)');
+xlabel('Time (s)');
+ylabel('Output');
+legend('s(t)', '\phi(t)');
+
+subplot(2,1,2);
+stairs(t_unstable, y_unstable);
+title('Linear System with T_s = 1.0s (Unstable)');
+xlabel('Time (s)');
+ylabel('Output');
+legend('s(t)', '\phi(t)');
 
 %% B5: Effect of sampling time on nonlinear system performance
-% Define sampling times to analyze
-sampling_times = [0.1, 0.5, 1.0];
+% Define the control input function for the nonlinear system
+u_nonlinear_func = @(t) -K * interp1(t_stable, y_stable, t, 'linear', 'extrap')'; % Interpolate control input
 
-% Loop through each sampling time
-for i = 1:length(sampling_times)
-    Ts = sampling_times(i);
-    
-    % Discretize the system
-    sysd = c2d(sys, Ts);
-    Ad = sysd.A;
-    Bd = sysd.B;
-    
-    % Design discrete controller (map continuous poles to discrete domain)
-    desired_poles_d = exp(Ts * desired_poles);
-    Kd = place(Ad, Bd, desired_poles_d);
-    
-    % Simulation parameters
-    T_total = 10;
-    N_steps = T_total / Ts;
-    x_discrete = zeros(4, N_steps+1);
-    x_discrete(:,1) = x0;
-    u_discrete = zeros(1, N_steps);
-    
-    % Discrete-time simulation using zero-order hold
-    for k = 1:N_steps
-        % Calculate control input
-        u_discrete(k) = -Kd * x_discrete(:, k);
-        
-        % Simulate one step of continuous system with constant input
-        [~, x_temp] = ode45(@(t, x) inverted_pendulum_dynamics_zoh(t, x, u_discrete(k)), ...
-                            [0 Ts], x_discrete(:, k));
-        
-        % Update state for next step
-        x_discrete(:, k+1) = x_temp(end, :)';
-    end
-    
-    % Time vector for plotting
-    t_discrete = 0:Ts:T_total;
-    
-    % Create figure for this sampling time
-    figure(i+1);
-    
-    % Plot position
-    subplot(3,1,1);
-    plot(t_discrete, x_discrete(1,:), 'LineWidth', 1.5);
-    title(['Position (s) - T_s = ', num2str(Ts), 's']);
-    xlabel('Time (s)');
-    ylabel('Position (m)');
-    grid on;
-    
-    % Plot angle
-    subplot(3,1,2);
-    plot(t_discrete, x_discrete(3,:), 'LineWidth', 1.5);
-    title(['Pendulum Angle (\phi) - T_s = ', num2str(Ts), 's']);
-    xlabel('Time (s)');
-    ylabel('Angle (rad)');
-    grid on;
-    
-    % Plot control input
-    subplot(3,1,3);
-    stairs(t_discrete(1:end-1), u_discrete, 'LineWidth', 1.5);
-    title(['Control Input (u) - T_s = ', num2str(Ts), 's']);
-    xlabel('Time (s)');
-    ylabel('Force (N)');
-    grid on;
-    % 
-    % % Set overall title and save figure
-    % sgtitle(['Discrete-Time Control Response - Sampling Time T_s = ', num2str(Ts), 's']);
-    % saveas(gcf, ['sampling_', num2str(Ts*10), 's.png']);
+% Wrapper function for ode45
+nonlinear_system = @(t, x) inverted_pendulum_dynamics_zoh(t, x, u_nonlinear_func(t));
+
+% Simulate nonlinear system with different sampling times
+[t_stable_nl, y_stable_nl] = ode45(nonlinear_system, t_stable, x0);
+[t_unstable_nl, y_unstable_nl] = ode45(nonlinear_system, t_unstable, x0);
+
+% Plot results for nonlinear system
+figure;
+subplot(2,1,1);
+plot(t_stable_nl, y_stable_nl(:, 1), 'b', t_stable_nl, y_stable_nl(:, 3), 'r');
+title('Nonlinear System with T_s = 0.1s');
+xlabel('Time (s)');
+ylabel('Output');
+legend('s(t)', '\phi(t)');
+
+subplot(2,1,2);
+plot(t_unstable_nl, y_unstable_nl(:, 1), 'b', t_unstable_nl, y_unstable_nl(:, 3), 'r');
+title('Nonlinear System with T_s = 1.0s');
+xlabel('Time (s)');
+ylabel('Output');
+legend('s(t)', '\phi(t)');
+%% B5: Effect of sampling time on nonlinear system performance
+
+% Define system parameters
+M = 1;       % Mass
+L = 0.842;   % Length
+F = 1;       % Friction coefficient
+g = 9.8093;  % Gravity
+
+% Define the state feedback gain matrix K (from previous design)
+% Example: K = [k1, k2, k3, k4]; % Replace with your actual K
+K = [1, 2, 3, 4]; % Replace with your actual K values
+
+% Define the nonlinear system dynamics
+function dx = inverted_pendulum_dynamics(t, x, u)
+    % State variables
+    s = x(1);      % Position
+    ds = x(2);     % Velocity
+    phi = x(3);    % Angle
+    dphi = x(4);   % Angular velocity
+
+    % State equations with constant input u
+    dx = [ds;
+          (u - F*ds) / M;
+          dphi;
+          (g*sin(phi))/L - (1/L)*((u - F*ds)/M)*cos(phi)];
 end
+
+% Define the sampling times to analyze
+Ts_stable = 0.1;   % Stable sampling time
+Ts_unstable = 1.0; % Potentially unstable sampling time
+
+% Define initial conditions
+x0 = [0; 1; 0; 0]; % Initial state [s; ds; phi; dphi]
+
+% Simulate nonlinear system with different sampling times
+[t_stable, y_stable, u_stable] = simulate_discrete_control(Ts_stable, x0, K);
+[t_unstable, y_unstable, u_unstable] = simulate_discrete_control(Ts_unstable, x0, K);
+
+% Plot results
+figure;
+subplot(2,1,1);
+plot(t_stable, y_stable(:, 1), 'b', t_stable, y_stable(:, 3), 'r');
+title('Nonlinear System with T_s = 0.1s');
+xlabel('Time (s)');
+ylabel('Output');
+legend('s(t)', '\phi(t)');
+grid on;
+
+subplot(2,1,2);
+plot(t_unstable, y_unstable(:, 1), 'b', t_unstable, y_unstable(:, 3), 'r');
+title('Nonlinear System with T_s = 1.0s');
+xlabel('Time (s)');
+ylabel('Output');
+legend('s(t)', '\phi(t)');
+grid on;
+
 %% B6: Calculate discrete-time state matrices
 % Discretize the open-loop system with stable sampling time
 sysd = c2d(ss(A, B, C, D), Ts_stable);
@@ -276,18 +294,6 @@ disp('Kd = ');
 disp(Kd);
 
 %% B8: Correct implementation of discrete-time control for nonlinear system
-% Define stable sampling time
-Ts_stable = 0.1;
-
-% Discretize the system
-sysd = c2d(sys, Ts_stable);
-Ad = sysd.A;
-Bd = sysd.B;
-
-% Design discrete controller (map continuous poles to discrete domain)
-desired_poles_d = exp(Ts_stable * desired_poles);
-Kd = place(Ad, Bd, desired_poles_d);
-
 % Simulation parameters
 T_total = 10;
 N_steps = T_total / Ts_stable;
@@ -310,54 +316,37 @@ end
 
 % Plot results
 t_discrete = 0:Ts_stable:T_total;
-figure(10);
-
-% Plot position
-subplot(3,1,1);
-plot(t_discrete, x_discrete(1,:), 'LineWidth', 1.5);
-title('Cart Position (s) - Discrete-Time Control');
+figure;
+subplot(2,1,1);
+plot(t_discrete, x_discrete(1,:), 'b', t_discrete, x_discrete(3,:), 'r');
+title('B8: Discrete-Time Control of Nonlinear System');
 xlabel('Time (s)');
-ylabel('Position (m)');
-grid on;
+ylabel('State');
+legend('s(t)', '\phi(t)');
 
-% Plot angle
-subplot(3,1,2);
-plot(t_discrete, x_discrete(3,:), 'LineWidth', 1.5);
-title('Pendulum Angle (\phi) - Discrete-Time Control');
-xlabel('Time (s)');
-ylabel('Angle (rad)');
-grid on;
-
-% Plot control input
-subplot(3,1,3);
-stairs(t_discrete(1:end-1), u_discrete, 'LineWidth', 1.5);
+subplot(2,1,2);
+stairs(t_discrete(1:end-1), u_discrete);
 title('Discrete Control Input u(k)');
 xlabel('Time (s)');
-ylabel('Force (N)');
-grid on;
-
-% Set overall title and save figure
-sgtitle('B8: Discrete-Time Control of Nonlinear System');
-saveas(gcf, 'discrete_nonlinear.png');
+ylabel('u(k)');
 
 %% B9-B10: LQR optimal control design
 % Initial condition for LQR test
-x0_lqr = [0; 1; 0.1; 0];
+x0_lqr = [-0.2; 0; 0.1; 0];
 
 % LQR weights
 Q = diag([100, 1, 100, 1]); % Higher penalty on position and angle
 R = 1;                      % Control input weight
 
-% Calculate LQR optimal gain for discrete system with Ts = 0.1
-Ts_lqr = 0.1;
-sysd_lqr = c2d(sys, Ts_lqr);
-Ad_lqr = sysd_lqr.A;
-Bd_lqr = sysd_lqr.B;
-K_lqr = dlqr(Ad_lqr, Bd_lqr, Q, R);
+% Calculate LQR optimal gain
+K_lqr = dlqr(Ad, Bd, Q, R);
+
+% Display LQR gain
+disp('B9: LQR controller gain:');
+disp('K_lqr = ');
+disp(K_lqr);
 
 % Simulation parameters
-T_total = 10;
-N_steps = T_total / Ts_lqr;
 x_lqr = zeros(4, N_steps+1);
 x_lqr(:,1) = x0_lqr;
 u_lqr = zeros(1, N_steps);
@@ -369,45 +358,26 @@ for k = 1:N_steps
     
     % Simulate one step of continuous system with constant input
     [~, x_temp] = ode45(@(t, x) inverted_pendulum_dynamics_zoh(t, x, u_lqr(k)), ...
-                        [0 Ts_lqr], x_lqr(:, k));
+                        [0 Ts_stable], x_lqr(:, k));
     
     % Update state for next step
     x_lqr(:, k+1) = x_temp(end, :)';
 end
 
-% Time vector for plotting
-t_lqr = 0:Ts_lqr:T_total;
-
-% Create figure for LQR control
-figure(9);
-
-% Plot position
-subplot(3,1,1);
-plot(t_lqr, x_lqr(1,:), 'LineWidth', 1.5);
-title('Cart Position (s) - LQR Control');
+% Plot results
+figure;
+subplot(2,1,1);
+plot(t_discrete, x_lqr(1,:), 'b', t_discrete, x_lqr(3,:), 'r');
+title('B10: LQR Control of Nonlinear System');
 xlabel('Time (s)');
-ylabel('Position (m)');
-grid on;
+ylabel('State');
+legend('s(t)', '\phi(t)');
 
-% Plot angle
-subplot(3,1,2);
-plot(t_lqr, x_lqr(3,:), 'LineWidth', 1.5);
-title('Pendulum Angle (\phi) - LQR Control');
+subplot(2,1,2);
+stairs(t_discrete(1:end-1), u_lqr);
+title('LQR Control Input u(k)');
 xlabel('Time (s)');
-ylabel('Angle (rad)');
-grid on;
-
-% Plot control input
-subplot(3,1,3);
-stairs(t_lqr(1:end-1), u_lqr, 'LineWidth', 1.5);
-title('Control Input (u) - LQR Control');
-xlabel('Time (s)');
-ylabel('Force (N)');
-grid on;
-
-% Set overall title and save figure
-sgtitle('LQR Optimal Control Response');
-saveas(gcf, 'lqr_control.png');
+ylabel('u(k)');
 
 %% B11: Compare pole placement and LQR controllers
 figure;
@@ -497,7 +467,7 @@ function dx = inverted_pendulum_dynamics(t, x, K)
           (g*sin(phi))/L - (1/L)*((u - F*ds)/M)*cos(phi)];
 end
 
-%% Nonlinear inverted pendulum dynamics with zero-order hold input
+% Nonlinear inverted pendulum dynamics with zero-order hold input
 function dx = inverted_pendulum_dynamics_zoh(t, x, u)
     % System parameters
     M = 1;
@@ -506,17 +476,18 @@ function dx = inverted_pendulum_dynamics_zoh(t, x, u)
     g = 9.8093;
 
     % State variables
-    s = x(1);      % Position
-    ds = x(2);     % Velocity
-    phi = x(3);    % Angle
-    dphi = x(4);   % Angular velocity
+    s = x(1);
+    ds = x(2);
+    phi = x(3);
+    dphi = x(4);
 
     % State equations with constant input u
     dx = [ds;
           (u - F*ds) / M;
           dphi;
           (g*sin(phi))/L - (1/L)*((u - F*ds)/M)*cos(phi)];
-end
+end 
+
 %% Helper function to simulate discrete-time control
 function [t, y, u] = simulate_discrete_control(Ts, x0, K)
     % Define the time vector
